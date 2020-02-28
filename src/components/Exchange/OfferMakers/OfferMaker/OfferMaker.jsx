@@ -21,12 +21,17 @@ export default class OfferMaker extends React.Component {
     constructor(props) {
         super(props);
         this.initialized = false;
+        this.touchedOffer = false;
 
         this.orderbookUnsub = this.props.d.orderbook.event.sub((data) => {
             if (data && data.pickPrice) {
+                this.touchedOffer = true;
                 this.updateState('price', data.pickPrice);
+            } else if (!this.touchedOffer) {
+                this.updateState('price', this.getPriceFromOrderbook());
             }
         });
+
         this.sessionUnsub = this.props.d.session.event.sub(() => {
             if (this.state.amount) {
                 this.updateState('amount', this.state.amount);
@@ -82,6 +87,19 @@ export default class OfferMaker extends React.Component {
         );
     }
 
+    getPriceFromOrderbook() {
+        if (this.props.side === 'buy' && this.props.d.orderbook.data.asks.length > 0) {
+            return new BigNumber(this.props.d.orderbook.data.asks[0].price).toString();
+            // Get rid of extra 0s
+        } else if (this.props.d.orderbook.data.asks.length > 0) {
+            // Proptypes validation makes sure this is sell
+            return new BigNumber(this.props.d.orderbook.data.bids[0].price).toString();
+            // Get rid of extra 0s
+        }
+
+        return '0';
+    }
+
     setInitialState() {
         this.setState({
             valid: false,
@@ -103,14 +121,7 @@ export default class OfferMaker extends React.Component {
         const state = {};
 
         // Initialize price
-        if (this.props.side === 'buy' && this.props.d.orderbook.data.asks.length > 0) {
-            state.price = new BigNumber(this.props.d.orderbook.data.asks[0].price).toString();
-            // Get rid of extra 0s
-        } else if (this.props.d.orderbook.data.asks.length > 0) {
-            // Proptypes validation makes sure this is sell
-            state.price = new BigNumber(this.props.d.orderbook.data.bids[0].price).toString();
-            // Get rid of extra 0s
-        }
+        state.price = this.getPriceFromOrderbook();
 
         state.errorType = '';
 
@@ -250,6 +261,7 @@ export default class OfferMaker extends React.Component {
                             name={inputType}
                             maxLength="20"
                             value={this.state[inputType]}
+                            onFocus={() => { this.touchedOffer = true; }}
                             onChange={e =>
                                 this.updateState(inputType, e.target.value, minValue, targetInputType, maxOffer)}
                             placeholder="" />
